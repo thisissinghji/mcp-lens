@@ -244,15 +244,64 @@ fn read_disabled_servers(path: &PathBuf) -> HashMap<String, serde_json::Value> {
     serde_json::from_str(&content).unwrap_or_default()
 }
 
-/// Resolve "~/.mcp.json" style paths to absolute paths
+/// Resolve config path — ONLY allow known MCP config locations.
+/// This prevents path traversal attacks where frontend could send
+/// arbitrary paths like "C:\Windows\System32\..." and we'd write to them.
 fn resolve_config_path(path_str: &str) -> Result<PathBuf, String> {
-    if path_str.starts_with("~") {
-        if let Some(home) = home_dir() {
+    let home = home_dir().ok_or("Cannot find home directory")?;
+
+    // Allowlist of valid MCP config paths
+    let allowed_paths = vec![
+        home.join(".mcp.json"),                                          // Claude Code
+        home.join(".cursor").join("mcp.json"),                           // Cursor
+        home.join(".codeium").join("windsurf").join("mcp_config.json"),   // Windsurf
+    ];
+
+    // Also allow APPDATA paths (Claude Desktop)
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let desktop_path = PathBuf::from(&appdata)
+            .join("Claude")
+            .join("claude_desktop_config.json");
+
+        // Resolve the input path
+        let resolved = if path_str.starts_with("~") {
             let rest = path_str.trim_start_matches("~/").trim_start_matches("~\\");
-            return Ok(home.join(rest));
+            home.join(rest)
+        } else {
+            PathBuf::from(path_str)
+        };
+
+        // Check against allowlist
+        for allowed in allowed_paths.iter().chain(std::iter::once(&desktop_path)) {
+            if resolved == *allowed {
+                return Ok(resolved);
+            }
+        }
+
+        return Err(format!(
+            "Path '{}' is not a recognized MCP config location",
+            path_str
+        ));
+    }
+
+    // Fallback: resolve and check against allowlist (no APPDATA)
+    let resolved = if path_str.starts_with("~") {
+        let rest = path_str.trim_start_matches("~/").trim_start_matches("~\\");
+        home.join(rest)
+    } else {
+        PathBuf::from(path_str)
+    };
+
+    for allowed in &allowed_paths {
+        if resolved == *allowed {
+            return Ok(resolved);
         }
     }
-    Ok(PathBuf::from(path_str))
+
+    Err(format!(
+        "Path '{}' is not a recognized MCP config location",
+        path_str
+    ))
 }
 
 fn home_dir() -> Option<PathBuf> {

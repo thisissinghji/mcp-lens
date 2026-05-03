@@ -409,11 +409,23 @@ pub struct ToolDetail {
 /// Returns: real tool count + token count
 #[tauri::command]
 pub fn count_real_tokens(command: String, args: Vec<String>) -> Result<RealTokenResult, String> {
-    // count_tokens.py ka path nikalo — ye src-tauri/src/ mein hai
-    // But installed app mein ye resource mein hoga, toh fallback bhi rakhte hain
+    // SECURITY: Only allow known MCP server launchers
+    // This prevents arbitrary command execution from the frontend
+    let allowed_commands = ["npx", "node", "python", "python3", "uvx", "bun", "deno"];
+    let cmd_lower = command.to_lowercase();
+    let cmd_base = cmd_lower.rsplit(['/', '\\']).next().unwrap_or(&cmd_lower);
+    let cmd_name = cmd_base.trim_end_matches(".exe");
+
+    if !allowed_commands.contains(&cmd_name) {
+        return Err(format!(
+            "Command '{}' is not allowed. Allowed: {}",
+            command,
+            allowed_commands.join(", ")
+        ));
+    }
+
     let script_path = find_count_script()?;
 
-    // Build command: python count_tokens.py <server_command> <server_args...>
     let mut cmd_args = vec![script_path.to_string_lossy().to_string()];
     cmd_args.push(command);
     cmd_args.extend(args);

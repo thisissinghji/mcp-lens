@@ -34,3 +34,8 @@ Thumbs.db
 # Env files
 .env
 .env.local
+
+# MCP config files (may contain API keys)
+.mcp.json
+.mcp-disabled.json
+.mcp.json.bak

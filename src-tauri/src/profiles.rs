@@ -10,7 +10,7 @@
 //   "Minimal"        → sab OFF
 //
 // Profiles app-data directory mein save hote hain:
-//   Windows: %APPDATA%/com.kumar.mcp-lens/profiles/
+//   Windows: %APPDATA%/com.mcplens.app/profiles/
 //   Each profile = one JSON file: "Frontend Mode.json"
 //
 // Profile file shape:
@@ -214,11 +214,11 @@ pub fn delete_profile(name: String) -> Result<String, String> {
 // ══════════════════════════════════════════════════════════════════
 
 /// Get the profiles directory path
-/// Windows: %APPDATA%/com.kumar.mcp-lens/profiles/
+/// Windows: %APPDATA%/com.mcplens.app/profiles/
 fn get_profiles_dir() -> Result<PathBuf, String> {
     if let Some(appdata) = std::env::var_os("APPDATA") {
         Ok(PathBuf::from(appdata)
-            .join("com.kumar.mcp-lens")
+            .join("com.mcplens.app")
             .join("profiles"))
     } else if let Some(home) = home_dir() {
         Ok(home.join(".mcp-lens").join("profiles"))
@@ -227,14 +227,25 @@ fn get_profiles_dir() -> Result<PathBuf, String> {
     }
 }
 
-/// Remove unsafe characters from filename
+/// Remove unsafe characters from filename and block dangerous names
 fn sanitize_filename(name: &str) -> String {
-    name.chars()
+    let sanitized: String = name.chars()
         .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0' => '_',
+            c if c.is_control() => '_',
             _ => c,
         })
-        .collect()
+        .collect();
+
+    // Block names that are just dots (path traversal)
+    let trimmed = sanitized.trim();
+    if trimmed.is_empty() || trimmed.chars().all(|c| c == '.') {
+        return "unnamed_profile".to_string();
+    }
+
+    // Limit length to 100 chars
+    let result: String = trimmed.chars().take(100).collect();
+    result
 }
 
 fn home_dir() -> Option<PathBuf> {

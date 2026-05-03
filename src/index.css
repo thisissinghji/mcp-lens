@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+
+/*
+  MCP Lens — "Swiss Editorial" Dark Edition
+  Same editorial typography + layout, inverted to a warm dark canvas.
+*/
+
+@theme {
+  /* Dark canvas tones */
+  --color-canvas: #111110;
+  --color-paper: #1a1a18;
+  --color-paper-hover: #21211e;
+  --color-rule: #2a2a27;
+  --color-rule-bold: #363632;
+
+  /* Light ink on dark */
+  --color-ink: #e8e5df;
+  --color-ink-2: #a09d95;
+  --color-ink-3: #706d66;
+  --color-ink-4: #4a4843;
+
+  /* Signal red for bloat */
+  --color-signal: #e05a45;
+  --color-signal-bg: #e05a4518;
+  --color-signal-light: #e8694a;
+
+  /* Fonts */
+  --font-display: "DM Serif Display", "Georgia", serif;
+  --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+:root { color-scheme: dark; }
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-rule-bold); border-radius: 4px; }
+
+::selection {
+  background: var(--color-signal);
+  color: white;
+}

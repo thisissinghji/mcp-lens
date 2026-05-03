@@ -431,6 +431,20 @@ pub fn count_real_tokens(command: String, args: Vec<String>) -> Result<RealToken
     cmd_args.extend(args);
 
     // Python script chalaao aur output padho
+    // CREATE_NO_WINDOW flag (0x08000000) prevents terminal window flash on Windows
+    #[cfg(target_os = "windows")]
+    let output = {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("python")
+            .args(&cmd_args)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output()
+            .map_err(|e| format!("Failed to run count_tokens.py: {}", e))?
+    };
+
+    #[cfg(not(target_os = "windows"))]
     let output = std::process::Command::new("python")
         .args(&cmd_args)
         .stdout(std::process::Stdio::piped())
@@ -447,18 +461,30 @@ pub fn count_real_tokens(command: String, args: Vec<String>) -> Result<RealToken
     Ok(result)
 }
 
-/// Find count_tokens.py script
+/// Find count_tokens.py script — checks multiple locations:
+/// 1. Next to the running .exe (for production builds)
+/// 2. In src-tauri/src/ (for dev mode)
+/// 3. In the app's resource directory
 fn find_count_script() -> Result<PathBuf, String> {
-    // Dev mode: src-tauri/src/count_tokens.py
+    // 1. Next to the running executable (production)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let beside_exe = exe_dir.join("count_tokens.py");
+            if beside_exe.exists() {
+                return Ok(beside_exe);
+            }
+        }
+    }
+
+    // 2. Dev mode: src-tauri/src/count_tokens.py
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src")
         .join("count_tokens.py");
-
     if dev_path.exists() {
         return Ok(dev_path);
     }
 
-    Err("count_tokens.py not found".to_string())
+    Err("count_tokens.py not found. For real token scanning, ensure count_tokens.py is next to the app executable.".to_string())
 }
 
 /// Get user's home directory

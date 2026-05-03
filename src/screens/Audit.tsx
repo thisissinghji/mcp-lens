@@ -1,32 +1,26 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { McpServerInfo, readMcpConfigs, countRealTokens } from "../lib/tauri";
+import { McpServerInfo, countRealTokens } from "../lib/tauri";
 
 const BLOAT_THRESHOLD = 5000;
 
-/* Stacked bar segment colors — gradient from light to dark on dark bg */
 const SEGMENT_COLORS = [
   "#d4d0c8", "#bbb7ad", "#a3a094", "#8c887c",
   "#767265", "#615d52", "#4d4940", "#3a3730",
   "#292622", "#1f1d19",
 ];
 
-export default function Audit() {
-  const [servers, setServers] = useState<McpServerInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // hoveredIdx is SHARED between the bar and table — hover one, both react
+interface AuditProps {
+  servers: McpServerInfo[];
+  setServers: React.Dispatch<React.SetStateAction<McpServerInfo[]>>;
+  loading: boolean;
+}
+
+export default function Audit({ servers, setServers, loading }: AuditProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState("");
-
-  useEffect(() => {
-    readMcpConfigs()
-      .then(setServers)
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, []);
 
   // Use real_tokens if available, otherwise estimated
   const getTokens = (s: McpServerInfo) => s.real_tokens ?? s.estimated_tokens;
@@ -74,13 +68,6 @@ export default function Audit() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-10">
-        <p className="text-sm text-[var(--color-signal)]">{error}</p>
-      </div>
-    );
-  }
 
   if (servers.length === 0) return <EmptyState />;
 

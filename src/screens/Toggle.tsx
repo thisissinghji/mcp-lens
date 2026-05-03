@@ -10,34 +10,33 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   McpServerInfo,
-  readMcpConfigs,
   getDisabledServers,
   toggleServer,
 } from "../lib/tauri";
 
-// Extended type: server + enabled state
 interface ToggleableServer extends McpServerInfo {
   enabled: boolean;
 }
 
-export default function Toggle() {
+interface ToggleProps {
+  servers: McpServerInfo[];       // from App.tsx (enabled servers)
+  refreshServers: () => Promise<void>;  // reload after toggle
+}
+
+export default function Toggle({ servers: enabledServers, refreshServers }: ToggleProps) {
   const [servers, setServers] = useState<ToggleableServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Load enabled + disabled servers, merge into one list
+  // Load enabled (from props) + disabled (from Rust), merge
   const loadData = async () => {
     try {
-      const [enabled, disabled] = await Promise.all([
-        readMcpConfigs(),
-        getDisabledServers(),
-      ]);
+      const disabled = await getDisabledServers();
 
-      // Merge: enabled=true, disabled=false, remove duplicates
       const seen = new Set<string>();
       const merged: ToggleableServer[] = [];
-      for (const s of enabled) {
+      for (const s of enabledServers) {
         if (!seen.has(s.name)) {
           seen.add(s.name);
           merged.push({ ...s, enabled: true });
@@ -53,7 +52,7 @@ export default function Toggle() {
       // Sort: enabled first, then by tokens descending
       merged.sort((a, b) => {
         if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-        return b.estimated_tokens - a.estimated_tokens;
+        return (b.real_tokens ?? b.estimated_tokens) - (a.real_tokens ?? a.estimated_tokens);
       });
 
       setServers(merged);
@@ -68,13 +67,15 @@ export default function Toggle() {
     loadData();
   }, []);
 
-  // Totals
-  const enabledServers = servers.filter((s) => s.enabled);
-  const totalActive = enabledServers.reduce(
-    (sum, s) => sum + s.estimated_tokens,
+  // Use real tokens when available, otherwise estimated
+  const getTokens = (s: ToggleableServer) => s.real_tokens ?? s.estimated_tokens;
+
+  const activeServers = servers.filter((s) => s.enabled);
+  const totalActive = activeServers.reduce(
+    (sum, s) => sum + getTokens(s),
     0
   );
-  const totalAll = servers.reduce((sum, s) => sum + s.estimated_tokens, 0);
+  const totalAll = servers.reduce((sum, s) => sum + getTokens(s), 0);
   const savedTokens = totalAll - totalActive;
 
   // Handle toggle
@@ -97,7 +98,8 @@ export default function Toggle() {
       );
       setTimeout(() => setMessage(null), 2000);
 
-      // Reload fresh data from disk
+      // Reload: refresh App-level state, then reload toggle list
+      await refreshServers();
       await loadData();
     } catch (e) {
       setMessage(`Error: ${e}`);
@@ -227,7 +229,7 @@ export default function Toggle() {
                         : "var(--color-ink-4)",
                     }}
                   >
-                    {server.estimated_tokens.toLocaleString()} tokens
+                    {getTokens(server).toLocaleString()} tokens
                   </span>
                 </div>
 

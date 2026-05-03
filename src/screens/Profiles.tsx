@@ -11,7 +11,11 @@ import {
   deleteProfile,
 } from "../lib/tauri";
 
-export default function Profiles() {
+interface ProfilesProps {
+  refreshServers: () => Promise<void>;
+}
+
+export default function Profiles({ refreshServers }: ProfilesProps) {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([]);
   const [allServers, setAllServers] = useState<McpServerInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +108,7 @@ export default function Profiles() {
     try {
       const result = await applyProfile(name);
       showMessage(result);
+      await refreshServers();
       await loadData();
     } catch (e) {
       showMessage(String(e), "err");

@@ -1,11 +1,10 @@
 // App.tsx — Root component with tab navigation
 //
-// 3 screens:
-//   Audit    → see token bloat (read-only view)
-//   Toggle   → turn servers on/off
-//   Profiles → save/load named configs
+// Server data is stored HERE (not in individual screens) so that
+// real token counts persist when switching between tabs.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { McpServerInfo, readMcpConfigs } from "./lib/tauri";
 import Audit from "./screens/Audit";
 import Toggle from "./screens/Toggle";
 import Profiles from "./screens/Profiles";
@@ -20,6 +19,33 @@ const TABS: { id: Tab; label: string }[] = [
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>("audit");
+
+  // Shared server state — persists across tab switches
+  const [servers, setServers] = useState<McpServerInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refreshServers = async () => {
+    try {
+      const data = await readMcpConfigs();
+      // Preserve real_tokens from previous scan if server still exists
+      setServers((prev) => {
+        const prevMap = new Map(prev.map((s) => [s.name, s]));
+        return data.map((s) => ({
+          ...s,
+          real_tokens: prevMap.get(s.name)?.real_tokens ?? s.real_tokens,
+          tool_count: prevMap.get(s.name)?.tool_count ?? s.tool_count,
+        }));
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshServers();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -46,9 +72,22 @@ function App() {
 
       {/* ── Active screen ────────────────────────────────── */}
       <div className="flex-1">
-        {activeTab === "audit" && <Audit />}
-        {activeTab === "toggle" && <Toggle />}
-        {activeTab === "profiles" && <Profiles />}
+        {activeTab === "audit" && (
+          <Audit
+            servers={servers}
+            setServers={setServers}
+            loading={loading}
+          />
+        )}
+        {activeTab === "toggle" && (
+          <Toggle
+            servers={servers}
+            refreshServers={refreshServers}
+          />
+        )}
+        {activeTab === "profiles" && (
+          <Profiles refreshServers={refreshServers} />
+        )}
       </div>
     </div>
   );

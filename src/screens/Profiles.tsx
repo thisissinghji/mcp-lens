@@ -63,7 +63,7 @@ export default function Profiles() {
     setNewName("");
     // Default: select all currently enabled servers
     const enabledNames = allServers
-      .filter((s) => s.source !== "disabled")
+      .filter((s) => (s.source as string) !== "disabled")
       .map((s) => s.name);
     setSelectedServers(new Set(enabledNames));
   };

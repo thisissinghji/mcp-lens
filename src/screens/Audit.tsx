@@ -40,7 +40,7 @@ export default function Audit({ servers, setServers, loading }: AuditProps) {
       setScanProgress(`Scanning ${server.name}... (${i + 1}/${updated.length})`);
 
       try {
-        const result = await countRealTokens(server.command, server.args);
+        const result = await countRealTokens(server.name);
         if (!result.error) {
           updated[i] = {
             ...server,

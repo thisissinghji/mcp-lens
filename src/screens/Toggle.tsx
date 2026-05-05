@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   McpServerInfo,
+  readMcpConfigs,
   getDisabledServers,
   toggleServer,
 } from "../lib/tauri";
@@ -29,23 +30,42 @@ export default function Toggle({ servers: enabledServers, refreshServers }: Togg
   const [toggling, setToggling] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Load enabled (from props) + disabled (from Rust), merge
+  // Load FRESH enabled + disabled from disk every time
+  // Don't rely on enabledServers prop (stale closure issue)
+  // But DO use it as a real_tokens cache so we don't lose scan data
   const loadData = async () => {
     try {
-      const disabled = await getDisabledServers();
+      const [freshEnabled, disabled] = await Promise.all([
+        readMcpConfigs(),
+        getDisabledServers(),
+      ]);
+
+      // Build a real_tokens cache from App-level state
+      const realTokensMap = new Map(
+        enabledServers
+          .filter((s) => s.real_tokens !== null)
+          .map((s) => [s.name, { real_tokens: s.real_tokens, tool_count: s.tool_count }])
+      );
+
+      const applyCache = (s: McpServerInfo): McpServerInfo => {
+        const cached = realTokensMap.get(s.name);
+        return cached
+          ? { ...s, real_tokens: cached.real_tokens, tool_count: cached.tool_count }
+          : s;
+      };
 
       const seen = new Set<string>();
       const merged: ToggleableServer[] = [];
-      for (const s of enabledServers) {
+      for (const s of freshEnabled) {
         if (!seen.has(s.name)) {
           seen.add(s.name);
-          merged.push({ ...s, enabled: true });
+          merged.push({ ...applyCache(s), enabled: true });
         }
       }
       for (const s of disabled) {
         if (!seen.has(s.name)) {
           seen.add(s.name);
-          merged.push({ ...s, enabled: false });
+          merged.push({ ...applyCache(s), enabled: false });
         }
       }
 

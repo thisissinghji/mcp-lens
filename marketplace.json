@@ -1,0 +1,135 @@
+[
+  {
+    "id": "filesystem",
+    "name": "Filesystem",
+    "description": "Give Claude read/write access to a specific folder. Safe and works offline.",
+    "category": "Files",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "${FOLDER_PATH}"],
+    "fields": [
+      {
+        "key": "FOLDER_PATH",
+        "label": "Folder Path",
+        "description": "Absolute path to the folder Claude can access (e.g. C:/Users/kumar/Downloads)",
+        "secret": false,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
+  },
+  {
+    "id": "context7",
+    "name": "Context7",
+    "description": "Latest library/framework documentation. Free, no API key needed.",
+    "category": "Docs",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp"],
+    "fields": [],
+    "homepage": "https://github.com/upstash/context7"
+  },
+  {
+    "id": "tavily",
+    "name": "Tavily Search",
+    "description": "AI-optimized web search. 1,000 free queries/month.",
+    "category": "Search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "tavily-mcp@latest"],
+    "env": {
+      "TAVILY_API_KEY": "${TAVILY_API_KEY}"
+    },
+    "fields": [
+      {
+        "key": "TAVILY_API_KEY",
+        "label": "Tavily API Key",
+        "description": "Get free key at app.tavily.com",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://tavily.com"
+  },
+  {
+    "id": "github",
+    "name": "GitHub Copilot MCP",
+    "description": "Read PRs, issues, repos via GitHub Copilot's MCP endpoint.",
+    "category": "Dev",
+    "transport": "http",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "headers": {
+      "Authorization": "Bearer ${GITHUB_TOKEN}"
+    },
+    "fields": [
+      {
+        "key": "GITHUB_TOKEN",
+        "label": "GitHub Personal Access Token",
+        "description": "Create at github.com/settings/tokens with repo scope",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/github/github-mcp-server"
+  },
+  {
+    "id": "postgres",
+    "name": "Postgres",
+    "description": "Query a PostgreSQL database from Claude.",
+    "category": "Database",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_URL}"],
+    "fields": [
+      {
+        "key": "POSTGRES_URL",
+        "label": "Postgres Connection URL",
+        "description": "e.g. postgresql://user:pass@localhost:5432/dbname",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
+  },
+  {
+    "id": "sqlite",
+    "name": "SQLite",
+    "description": "Query a local SQLite database file.",
+    "category": "Database",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-sqlite", "${DB_PATH}"],
+    "fields": [
+      {
+        "key": "DB_PATH",
+        "label": "SQLite Database File Path",
+        "description": "Absolute path to your .db or .sqlite file",
+        "secret": false,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite"
+  },
+  {
+    "id": "puppeteer",
+    "name": "Puppeteer (Browser)",
+    "description": "Let Claude control a headless browser for scraping and automation.",
+    "category": "Web",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer"
+  },
+  {
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Fetch and convert web pages to markdown.",
+    "category": "Web",
+    "transport": "stdio",
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+  }
+]

@@ -12,8 +12,10 @@ export interface McpServerInfo {
   args: string[];
   env_keys: string[];
   estimated_tokens: number;
-  real_tokens: number | null;    // null = not scanned yet
-  tool_count: number | null;     // null = not scanned yet
+  real_tokens: number | null;
+  tool_count: number | null;
+  server_type: "stdio" | "http" | "sse";
+  header_keys: string[];
 }
 
 export interface RealTokenResult {
@@ -35,6 +37,46 @@ export interface ProfileSummary {
   server_names: string[];
 }
 
+// ── Add / Marketplace types ──────────────────────────────────────
+
+export interface AddServerRequest {
+  name: string;
+  transport: "stdio" | "http" | "sse";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+export interface MarketplaceField {
+  key: string;
+  label: string;
+  description?: string;
+  secret: boolean;
+  required: boolean;
+}
+
+export interface MarketplaceEntry {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  transport: "stdio" | "http" | "sse";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  fields: MarketplaceField[];
+  homepage?: string;
+}
+
+export interface MarketplaceResponse {
+  entries: MarketplaceEntry[];
+  source: "github" | "fallback";
+}
+
 // ── Config Commands ──────────────────────────────────────────────
 
 export async function readMcpConfigs(): Promise<McpServerInfo[]> {
@@ -42,10 +84,9 @@ export async function readMcpConfigs(): Promise<McpServerInfo[]> {
 }
 
 export async function countRealTokens(
-  command: string,
-  args: string[]
+  serverName: string
 ): Promise<RealTokenResult> {
-  return invoke<RealTokenResult>("count_real_tokens", { command, args });
+  return invoke<RealTokenResult>("count_real_tokens", { serverName });
 }
 
 // ── Toggle Commands ──────────────────────────────────────────────
@@ -80,4 +121,18 @@ export async function applyProfile(name: string): Promise<string> {
 
 export async function deleteProfile(name: string): Promise<string> {
   return invoke<string>("delete_profile", { name });
+}
+
+// ── Add / Marketplace Commands ───────────────────────────────────
+
+export async function addServer(server: AddServerRequest): Promise<string> {
+  return invoke<string>("add_server", { server });
+}
+
+export async function deleteServer(serverName: string): Promise<string> {
+  return invoke<string>("delete_server", { serverName });
+}
+
+export async function fetchMarketplace(): Promise<MarketplaceResponse> {
+  return invoke<MarketplaceResponse>("fetch_marketplace");
 }

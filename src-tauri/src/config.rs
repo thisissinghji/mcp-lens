@@ -29,20 +29,23 @@ struct McpServerRaw {
     url: Option<String>,
     #[serde(rename = "type")]
     server_type: Option<String>,
+    headers: Option<HashMap<String, String>>,
 }
 
 /// What we send to the frontend — clean, enriched with metadata
 #[derive(Serialize, Clone, Debug)]
 pub struct McpServerInfo {
     pub name: String,
-    pub source: String,        // "user" | "project" | "plugin" | "claude-desktop"
+    pub source: String,
     pub source_path: String,
     pub command: String,
     pub args: Vec<String>,
     pub env_keys: Vec<String>,
     pub estimated_tokens: u32,
-    pub real_tokens: Option<u32>,   // None = not yet counted, Some(n) = real count
-    pub tool_count: Option<u32>,    // None = unknown, Some(n) = real tool count
+    pub real_tokens: Option<u32>,
+    pub tool_count: Option<u32>,
+    pub server_type: String,           // "stdio" | "http" | "sse"
+    pub header_keys: Vec<String>,      // header names only — never leak values!
 }
 
 /// Shape of ~/.claude/settings.json — we only care about enabledPlugins
@@ -265,6 +268,18 @@ fn read_servers_from_file(
     let servers = raw_servers
         .into_iter()
         .map(|(name, raw)| {
+            // Detect server type
+            // If "type" field is set ("http"/"sse"), use that
+            // Else if URL is set, default to http
+            // Else stdio (subprocess)
+            let server_type = if let Some(t) = &raw.server_type {
+                t.clone()
+            } else if raw.url.is_some() {
+                "http".to_string()
+            } else {
+                "stdio".to_string()
+            };
+
             let command = raw.command.clone()
                 .or(raw.url.clone())
                 .unwrap_or_else(|| "unknown".to_string());
@@ -279,6 +294,9 @@ fn read_servers_from_file(
             let env_keys: Vec<String> = raw.env.clone()
                 .map(|e| e.keys().cloned().collect())
                 .unwrap_or_default();
+            let header_keys: Vec<String> = raw.headers.clone()
+                .map(|h| h.keys().cloned().collect())
+                .unwrap_or_default();
             let estimated_tokens = estimate_tokens(&name, &command, &args, &env_keys);
 
             McpServerInfo {
@@ -291,6 +309,8 @@ fn read_servers_from_file(
                 estimated_tokens,
                 real_tokens: None,
                 tool_count: None,
+                server_type,
+                header_keys,
             }
         })
         .collect();
@@ -382,6 +402,40 @@ pub fn estimate_tokens_pub(name: &str, command: &str, args: &[String], env_keys:
     estimate_tokens(name, command, args, env_keys)
 }
 
+/// Find raw config for a server by name across all known config locations
+fn find_server_config(name: &str) -> Result<McpServerRaw, String> {
+    let mut candidate_paths: Vec<PathBuf> = Vec::new();
+
+    if let Some(home) = home_dir() {
+        candidate_paths.push(home.join(".mcp.json"));
+        candidate_paths.push(home.join(".cursor").join("mcp.json"));
+        candidate_paths.push(home.join(".codeium").join("windsurf").join("mcp_config.json"));
+    }
+    candidate_paths.push(PathBuf::from(".mcp.json"));
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        candidate_paths.push(PathBuf::from(appdata)
+            .join("Claude")
+            .join("claude_desktop_config.json"));
+    }
+
+    for path in candidate_paths {
+        if !path.exists() {
+            continue;
+        }
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if let Ok(servers) = parse_mcp_json(&content) {
+            if let Some(raw) = servers.get(name) {
+                return Ok(raw.clone());
+            }
+        }
+    }
+
+    Err(format!("Server '{}' not found in any MCP config", name))
+}
+
 // ══════════════════════════════════════════════════════════════════
 // REAL TOKEN COUNTING — Python script call karke actual count lo
 // ══════════════════════════════════════════════════════════════════
@@ -404,31 +458,71 @@ pub struct ToolDetail {
 
 /// TAURI COMMAND: Count real tokens for a specific server
 ///
-/// Frontend calls: invoke("count_real_tokens", { command: "python", args: ["path/to/server.py"] })
-/// This runs: python count_tokens.py <command> <args...>
-/// Returns: real tool count + token count
+/// Reads the server config FROM .mcp.json (by name) so we have access
+/// to type, url, and headers — not just what the frontend tells us.
+/// This is more secure (no arbitrary headers from frontend) and ensures
+/// we use the actual config Claude Code is using.
 #[tauri::command]
-pub fn count_real_tokens(command: String, args: Vec<String>) -> Result<RealTokenResult, String> {
-    // SECURITY: Only allow known MCP server launchers
-    // This prevents arbitrary command execution from the frontend
-    let allowed_commands = ["npx", "node", "python", "python3", "uvx", "bun", "deno"];
-    let cmd_lower = command.to_lowercase();
-    let cmd_base = cmd_lower.rsplit(['/', '\\']).next().unwrap_or(&cmd_lower);
-    let cmd_name = cmd_base.trim_end_matches(".exe");
+pub fn count_real_tokens(server_name: String) -> Result<RealTokenResult, String> {
+    // Find the server in the user's actual MCP config
+    let raw = find_server_config(&server_name)?;
 
-    if !allowed_commands.contains(&cmd_name) {
-        return Err(format!(
-            "Command '{}' is not allowed. Allowed: {}",
-            command,
-            allowed_commands.join(", ")
-        ));
-    }
+    // Determine transport
+    let server_type = if let Some(t) = &raw.server_type {
+        t.clone()
+    } else if raw.url.is_some() {
+        "http".to_string()
+    } else {
+        "stdio".to_string()
+    };
 
     let script_path = find_count_script()?;
-
     let mut cmd_args = vec![script_path.to_string_lossy().to_string()];
-    cmd_args.push(command);
-    cmd_args.extend(args);
+
+    if server_type == "stdio" {
+        let command = raw.command.clone()
+            .ok_or("stdio server missing command")?;
+
+        // SECURITY: allowlist of known launchers
+        let allowed_commands = ["npx", "node", "python", "python3", "uvx", "bun", "deno"];
+        let cmd_lower = command.to_lowercase();
+        let cmd_base = cmd_lower.rsplit(['/', '\\']).next().unwrap_or(&cmd_lower);
+        let cmd_name = cmd_base.trim_end_matches(".exe");
+
+        if !allowed_commands.contains(&cmd_name) {
+            return Err(format!(
+                "Command '{}' is not allowed. Allowed: {}",
+                command,
+                allowed_commands.join(", ")
+            ));
+        }
+
+        cmd_args.push("stdio".to_string());
+        cmd_args.push(command);
+        let args: Vec<String> = raw.args.clone()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|v| match v {
+                serde_json::Value::String(s) => s,
+                other => other.to_string(),
+            })
+            .collect();
+        cmd_args.extend(args);
+    } else {
+        // http or sse
+        let url = raw.url.clone()
+            .ok_or("http server missing url")?;
+
+        cmd_args.push("http".to_string());
+        cmd_args.push(url);
+
+        // Pass headers as "Key:Value" strings
+        if let Some(headers) = &raw.headers {
+            for (k, v) in headers {
+                cmd_args.push(format!("{}:{}", k, v));
+            }
+        }
+    }
 
     // Python script chalaao aur output padho
     // CREATE_NO_WINDOW flag (0x08000000) prevents terminal window flash on Windows

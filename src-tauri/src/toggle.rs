@@ -132,6 +132,19 @@ pub fn get_disabled_servers() -> Result<Vec<crate::config::McpServerInfo>, Strin
 
             let estimated_tokens = crate::config::estimate_tokens_pub(&name, &command, &args, &env_keys);
 
+            // Detect server type for disabled entries too
+            let server_type = if let Some(t) = value.get("type").and_then(|v| v.as_str()) {
+                t.to_string()
+            } else if value.get("url").is_some() {
+                "http".to_string()
+            } else {
+                "stdio".to_string()
+            };
+            let header_keys: Vec<String> = value.get("headers")
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.keys().cloned().collect())
+                .unwrap_or_default();
+
             crate::config::McpServerInfo {
                 name,
                 source: "user".to_string(),
@@ -142,6 +155,8 @@ pub fn get_disabled_servers() -> Result<Vec<crate::config::McpServerInfo>, Strin
                 estimated_tokens,
                 real_tokens: None,
                 tool_count: None,
+                server_type,
+                header_keys,
             }
         })
         .collect();

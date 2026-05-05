@@ -1,11 +1,15 @@
 """
 count_tokens.py — Connects to an MCP server and counts REAL tokens
 
-Uses the official MCP SDK client — no manual protocol handling needed.
-SDK handles all the JSON-RPC + stdio transport details.
+Supports BOTH transports:
+  - stdio (subprocess: npx, python, node)
+  - http  (Streamable HTTP servers with custom headers)
 
-Usage: python count_tokens.py <command> <arg1> <arg2> ...
-Output: JSON with tool_count, token_count, and tool details
+Usage:
+  Stdio:  python count_tokens.py stdio <command> <arg1> <arg2> ...
+  HTTP:   python count_tokens.py http <url> [header_key:header_value ...]
+
+Output: JSON {tool_count, token_count, tools[]}
 """
 
 import sys
@@ -15,78 +19,101 @@ from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
-async def count_server_tokens(command: str, args: list[str]) -> dict:
-    """
-    MCP server start karo, tool list lo, tokens count karo, band karo.
-    """
+async def count_via_stdio(command: str, args: list[str]) -> dict:
+    """Count tokens for a stdio (subprocess) MCP server"""
+    server_params = StdioServerParameters(command=command, args=args)
+    async with stdio_client(server_params) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            tools_result = await session.list_tools()
+            return summarize_tools(tools_result.tools)
+
+
+async def count_via_http(url: str, headers: dict) -> dict:
+    """Count tokens for an HTTP (Streamable HTTP) MCP server"""
+    # Import here so stdio-only setups don't fail
+    from mcp.client.streamable_http import streamablehttp_client
+
+    async with streamablehttp_client(url, headers=headers) as (read_stream, write_stream, _get_session_id):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            tools_result = await session.list_tools()
+            return summarize_tools(tools_result.tools)
+
+
+def summarize_tools(tools) -> dict:
+    """Convert tool list to token summary"""
+    total_text = ""
+    tool_summaries = []
+
+    for tool in tools:
+        name = tool.name or ""
+        desc = tool.description or ""
+        schema = json.dumps(tool.inputSchema) if tool.inputSchema else "{}"
+
+        tool_text = f"{name} {desc} {schema}"
+        total_text += tool_text + " "
+
+        tool_tokens = max(len(tool_text) // 4, 1)
+        tool_summaries.append({
+            "name": name,
+            "description": desc[:100],
+            "tokens": tool_tokens,
+        })
+
+    raw_tokens = len(total_text) // 4
+    overhead = 50
+    total_tokens = raw_tokens + overhead
+
+    return {
+        "tool_count": len(tools),
+        "token_count": total_tokens,
+        "tools": tool_summaries,
+    }
+
+
+async def main():
+    if len(sys.argv) < 3:
+        print(json.dumps({
+            "error": "Usage: python count_tokens.py <stdio|http> <command_or_url> [args/headers...]"
+        }))
+        sys.exit(1)
+
+    transport = sys.argv[1]
+
     try:
-        # Server parameters define karo
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-        )
+        if transport == "stdio":
+            command = sys.argv[2]
+            args = sys.argv[3:]
+            result = await count_via_stdio(command, args)
 
-        # stdio_client = MCP SDK ka built-in client
-        # Ye server ko subprocess mein start karta hai,
-        # initialize handshake karta hai, aur session deta hai
-        async with stdio_client(server_params) as (read_stream, write_stream):
-            async with ClientSession(read_stream, write_stream) as session:
-                # Initialize — MCP protocol ka handshake
-                await session.initialize()
+        elif transport == "http":
+            url = sys.argv[2]
+            # Parse headers from "key:value" format
+            headers = {}
+            for header_arg in sys.argv[3:]:
+                if ":" in header_arg:
+                    key, value = header_arg.split(":", 1)
+                    headers[key.strip()] = value.strip()
+            result = await count_via_http(url, headers)
 
-                # YAHI MAIN LINE HAI — server se tool list maango
-                tools_result = await session.list_tools()
-                tools = tools_result.tools
+        else:
+            result = {
+                "error": f"Unknown transport: {transport}",
+                "tool_count": 0,
+                "token_count": 0,
+                "tools": [],
+            }
 
-                # Har tool ka text collect karo
-                total_text = ""
-                tool_summaries = []
-
-                for tool in tools:
-                    name = tool.name or ""
-                    desc = tool.description or ""
-                    schema = json.dumps(tool.inputSchema) if tool.inputSchema else "{}"
-
-                    tool_text = f"{name} {desc} {schema}"
-                    total_text += tool_text + " "
-
-                    tool_tokens = max(len(tool_text) // 4, 1)
-                    tool_summaries.append({
-                        "name": name,
-                        "description": desc[:100],
-                        "tokens": tool_tokens,
-                    })
-
-                # Total tokens: ~4 chars per token + overhead
-                raw_tokens = len(total_text) // 4
-                overhead = 50
-                total_tokens = raw_tokens + overhead
-
-                return {
-                    "tool_count": len(tools),
-                    "token_count": total_tokens,
-                    "tools": tool_summaries,
-                }
+        print(json.dumps(result))
 
     except Exception as e:
-        return {
+        print(json.dumps({
             "error": str(e),
             "tool_count": 0,
             "token_count": 0,
             "tools": [],
-        }
-
-
-async def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Usage: python count_tokens.py <command> <args...>"}))
-        sys.exit(1)
-
-    command = sys.argv[1]
-    args = sys.argv[2:]
-
-    result = await count_server_tokens(command, args)
-    print(json.dumps(result))
+        }))
 
 
 if __name__ == "__main__":

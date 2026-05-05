@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   AddServerRequest,
   McpServerInfo,
@@ -49,7 +50,7 @@ export default function Add({ servers, refreshServers }: AddProps) {
               : "text-[var(--color-ink-3)] hover:text-[var(--color-ink-2)]"
           }`}
         >
-          Marketplace
+          Quick Install
         </button>
         <button
           onClick={() => setSection("custom")}
@@ -196,6 +197,25 @@ function Marketplace({
           );
         })}
       </div>
+
+      {/* ── Browse-more footer ─────────────────────────── */}
+      <p className="text-[11px] text-[var(--color-ink-3)] mt-8 pt-4 border-t border-[var(--color-rule)] text-center">
+        Looking for more?{" "}
+        <button
+          onClick={() => openUrl("https://mcp.so")}
+          className="text-[var(--color-ink)] underline underline-offset-2 hover:opacity-80 cursor-pointer"
+        >
+          mcp.so
+        </button>
+        {" or "}
+        <button
+          onClick={() => openUrl("https://github.com/punkpeye/awesome-mcp-servers")}
+          className="text-[var(--color-ink)] underline underline-offset-2 hover:opacity-80 cursor-pointer"
+        >
+          awesome-mcp-servers
+        </button>
+        {" — then add via the Custom tab."}
+      </p>
 
       {/* Install modal */}
       <AnimatePresence>

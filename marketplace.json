@@ -11,12 +11,45 @@
       {
         "key": "FOLDER_PATH",
         "label": "Folder Path",
-        "description": "Absolute path to the folder Claude can access (e.g. C:/Users/kumar/Downloads)",
+        "description": "Absolute path Claude can access (e.g. C:/Users/kumar/Downloads)",
         "secret": false,
         "required": true
       }
     ],
     "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
+  },
+  {
+    "id": "memory",
+    "name": "Memory",
+    "description": "Persistent knowledge graph memory across conversations. No API key.",
+    "category": "Memory",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-memory"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory"
+  },
+  {
+    "id": "sequential-thinking",
+    "name": "Sequential Thinking",
+    "description": "Step-by-step problem solving with revision and branching. No API key.",
+    "category": "AI",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"
+  },
+  {
+    "id": "time",
+    "name": "Time",
+    "description": "Current time and timezone conversions. No API key.",
+    "category": "Utility",
+    "transport": "stdio",
+    "command": "uvx",
+    "args": ["mcp-server-time"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/time"
   },
   {
     "id": "context7",
@@ -28,6 +61,115 @@
     "args": ["-y", "@upstash/context7-mcp"],
     "fields": [],
     "homepage": "https://github.com/upstash/context7"
+  },
+  {
+    "id": "fetch",
+    "name": "Fetch",
+    "description": "Fetch and convert web pages to markdown. No API key.",
+    "category": "Web",
+    "transport": "stdio",
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+  },
+  {
+    "id": "puppeteer",
+    "name": "Puppeteer",
+    "description": "Control a headless browser for scraping and automation. No API key.",
+    "category": "Web",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+    "fields": [],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer"
+  },
+  {
+    "id": "git",
+    "name": "Git",
+    "description": "Read and inspect Git repos — commits, diffs, branches. No API key.",
+    "category": "Dev",
+    "transport": "stdio",
+    "command": "uvx",
+    "args": ["mcp-server-git", "--repository", "${REPO_PATH}"],
+    "fields": [
+      {
+        "key": "REPO_PATH",
+        "label": "Repository Path",
+        "description": "Absolute path to a local Git repo",
+        "secret": false,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/git"
+  },
+  {
+    "id": "desktop-commander",
+    "name": "Desktop Commander",
+    "description": "Run terminal commands and edit files with diffs. No API key.",
+    "category": "Files",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@wonderwhy-er/desktop-commander"],
+    "fields": [],
+    "homepage": "https://github.com/wonderwhy-er/DesktopCommanderMCP"
+  },
+  {
+    "id": "sqlite",
+    "name": "SQLite",
+    "description": "Query a local SQLite database file. No API key.",
+    "category": "Database",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-sqlite", "${DB_PATH}"],
+    "fields": [
+      {
+        "key": "DB_PATH",
+        "label": "SQLite Database File Path",
+        "description": "Absolute path to your .db or .sqlite file",
+        "secret": false,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite"
+  },
+  {
+    "id": "postgres",
+    "name": "Postgres",
+    "description": "Query a PostgreSQL database from Claude.",
+    "category": "Database",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_URL}"],
+    "fields": [
+      {
+        "key": "POSTGRES_URL",
+        "label": "Postgres Connection URL",
+        "description": "e.g. postgresql://user:pass@localhost:5432/dbname",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
+  },
+  {
+    "id": "redis",
+    "name": "Redis",
+    "description": "Query a Redis cache / key-value store from Claude.",
+    "category": "Database",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-redis", "${REDIS_URL}"],
+    "fields": [
+      {
+        "key": "REDIS_URL",
+        "label": "Redis Connection URL",
+        "description": "e.g. redis://localhost:6379",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/redis"
   },
   {
     "id": "tavily",
@@ -52,6 +194,50 @@
     "homepage": "https://tavily.com"
   },
   {
+    "id": "brave-search",
+    "name": "Brave Search",
+    "description": "Privacy-focused web search. 2,000 free queries/month.",
+    "category": "Search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+    "env": {
+      "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+    },
+    "fields": [
+      {
+        "key": "BRAVE_API_KEY",
+        "label": "Brave Search API Key",
+        "description": "Get free key at api.search.brave.com",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search"
+  },
+  {
+    "id": "google-maps",
+    "name": "Google Maps",
+    "description": "Geocoding, directions, places search via Google Maps.",
+    "category": "Search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-google-maps"],
+    "env": {
+      "GOOGLE_MAPS_API_KEY": "${GOOGLE_MAPS_API_KEY}"
+    },
+    "fields": [
+      {
+        "key": "GOOGLE_MAPS_API_KEY",
+        "label": "Google Maps API Key",
+        "description": "Create at console.cloud.google.com (enable Maps Platform)",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps"
+  },
+  {
     "id": "github",
     "name": "GitHub Copilot MCP",
     "description": "Read PRs, issues, repos via GitHub Copilot's MCP endpoint.",
@@ -73,63 +259,99 @@
     "homepage": "https://github.com/github/github-mcp-server"
   },
   {
-    "id": "postgres",
-    "name": "Postgres",
-    "description": "Query a PostgreSQL database from Claude.",
-    "category": "Database",
+    "id": "gitlab",
+    "name": "GitLab",
+    "description": "Read GitLab projects, MRs, issues. Defaults to gitlab.com.",
+    "category": "Dev",
     "transport": "stdio",
     "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-postgres", "${POSTGRES_URL}"],
+    "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+    "env": {
+      "GITLAB_PERSONAL_ACCESS_TOKEN": "${GITLAB_TOKEN}"
+    },
     "fields": [
       {
-        "key": "POSTGRES_URL",
-        "label": "Postgres Connection URL",
-        "description": "e.g. postgresql://user:pass@localhost:5432/dbname",
+        "key": "GITLAB_TOKEN",
+        "label": "GitLab Personal Access Token",
+        "description": "Create at gitlab.com/-/user_settings/personal_access_tokens",
         "secret": true,
         "required": true
       }
     ],
-    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab"
   },
   {
-    "id": "sqlite",
-    "name": "SQLite",
-    "description": "Query a local SQLite database file.",
-    "category": "Database",
+    "id": "sentry",
+    "name": "Sentry",
+    "description": "Read Sentry error reports and project info.",
+    "category": "Dev",
     "transport": "stdio",
     "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-sqlite", "${DB_PATH}"],
+    "args": ["-y", "@modelcontextprotocol/server-sentry"],
+    "env": {
+      "SENTRY_AUTH_TOKEN": "${SENTRY_AUTH_TOKEN}"
+    },
     "fields": [
       {
-        "key": "DB_PATH",
-        "label": "SQLite Database File Path",
-        "description": "Absolute path to your .db or .sqlite file",
+        "key": "SENTRY_AUTH_TOKEN",
+        "label": "Sentry Auth Token",
+        "description": "Create at sentry.io/settings/account/api/auth-tokens",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sentry"
+  },
+  {
+    "id": "slack",
+    "name": "Slack",
+    "description": "Read channels, send messages, search Slack workspace.",
+    "category": "Productivity",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-slack"],
+    "env": {
+      "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+      "SLACK_TEAM_ID": "${SLACK_TEAM_ID}"
+    },
+    "fields": [
+      {
+        "key": "SLACK_BOT_TOKEN",
+        "label": "Slack Bot Token",
+        "description": "xoxb- token from your Slack app",
+        "secret": true,
+        "required": true
+      },
+      {
+        "key": "SLACK_TEAM_ID",
+        "label": "Slack Team ID",
+        "description": "Workspace ID (T0123...)",
         "secret": false,
         "required": true
       }
     ],
-    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite"
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/slack"
   },
   {
-    "id": "puppeteer",
-    "name": "Puppeteer (Browser)",
-    "description": "Let Claude control a headless browser for scraping and automation.",
-    "category": "Web",
+    "id": "everart",
+    "name": "EverArt",
+    "description": "AI image generation. Free credits with sign-up.",
+    "category": "AI",
     "transport": "stdio",
     "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
-    "fields": [],
-    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer"
-  },
-  {
-    "id": "fetch",
-    "name": "Fetch",
-    "description": "Fetch and convert web pages to markdown.",
-    "category": "Web",
-    "transport": "stdio",
-    "command": "uvx",
-    "args": ["mcp-server-fetch"],
-    "fields": [],
-    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch"
+    "args": ["-y", "@modelcontextprotocol/server-everart"],
+    "env": {
+      "EVERART_API_KEY": "${EVERART_API_KEY}"
+    },
+    "fields": [
+      {
+        "key": "EVERART_API_KEY",
+        "label": "EverArt API Key",
+        "description": "Get key at everart.ai",
+        "secret": true,
+        "required": true
+      }
+    ],
+    "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/everart"
   }
 ]

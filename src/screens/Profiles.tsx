@@ -35,11 +35,15 @@ export default function Profiles({ refreshServers }: ProfilesProps) {
         getDisabledServers(),
       ]);
       setProfiles(profileList);
-      // Merge enabled + disabled, but remove duplicates by name
+      // Profiles only manage .mcp.json — exclude Claude Code CLI servers
+      // (~/.claude.json holds 47KB of Claude Code state; we don't write there)
+      const isManageable = (s: McpServerInfo) =>
+        s.source !== "claude-code-user" && s.source !== "claude-code-local";
+      // Merge enabled + disabled, dedupe by name, drop read-only sources
       const seen = new Set<string>();
       const merged: McpServerInfo[] = [];
       for (const s of [...enabled, ...disabled]) {
-        if (!seen.has(s.name)) {
+        if (!seen.has(s.name) && isManageable(s)) {
           seen.add(s.name);
           merged.push(s);
         }

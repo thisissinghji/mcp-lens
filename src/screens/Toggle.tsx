@@ -19,6 +19,11 @@ interface ToggleableServer extends McpServerInfo {
   enabled: boolean;
 }
 
+// Servers in ~/.claude.json are managed by Claude Code CLI — we don't write
+// that file (it holds 47KB+ of unrelated state). Show them but block toggle.
+const isReadOnlySource = (source: string) =>
+  source === "claude-code-user" || source === "claude-code-local";
+
 interface ToggleProps {
   servers: McpServerInfo[];       // from App.tsx (enabled servers)
   refreshServers: () => Promise<void>;  // reload after toggle
@@ -201,6 +206,7 @@ export default function Toggle({ servers: enabledServers, refreshServers }: Togg
         <div className="space-y-2">
           {servers.map((server, i) => {
             const isToggling = toggling === server.name;
+            const readOnly = isReadOnlySource(server.source);
 
             return (
               <motion.div
@@ -234,6 +240,14 @@ export default function Toggle({ servers: enabledServers, refreshServers }: Togg
                     <span className="text-[10px] text-[var(--color-ink-4)] bg-[var(--color-canvas)] px-1.5 py-px rounded">
                       {server.source}
                     </span>
+                    {readOnly && (
+                      <span
+                        className="text-[10px] text-[var(--color-ink-4)] border border-[var(--color-rule)] px-1.5 py-px rounded"
+                        title="Managed by Claude Code CLI — toggle via `claude mcp remove`"
+                      >
+                        read-only
+                      </span>
+                    )}
                     {!server.enabled && (
                       <span className="text-[10px] text-[var(--color-ink-4)]">
                         disabled
@@ -255,12 +269,14 @@ export default function Toggle({ servers: enabledServers, refreshServers }: Togg
 
                 {/* Right: toggle switch */}
                 <button
-                  onClick={() => handleToggle(server)}
-                  disabled={isToggling}
+                  onClick={() => !readOnly && handleToggle(server)}
+                  disabled={isToggling || readOnly}
+                  title={readOnly ? "Managed by Claude Code CLI" : undefined}
                   className={`
                     relative w-11 h-6 rounded-full transition-colors duration-200
-                    cursor-pointer disabled:cursor-wait
+                    cursor-pointer disabled:cursor-not-allowed
                     ${server.enabled ? "bg-[#4ade80]" : "bg-[var(--color-rule-bold)]"}
+                    ${readOnly ? "opacity-40" : ""}
                   `}
                 >
                   <motion.div

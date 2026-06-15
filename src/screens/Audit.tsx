@@ -335,9 +335,7 @@ export default function Audit({ servers, setServers, loading }: AuditProps) {
 
                 {/* Source */}
                 <td className="py-3.5 pr-4 text-[12px] text-[var(--color-ink-3)] align-top">
-                  {server.source === "claude-desktop"
-                    ? "desktop"
-                    : server.source}
+                  {sourceLabel(server.source)}
                 </td>
 
                 {/* Command — truncated in table, full in expanded */}
@@ -385,6 +383,18 @@ export default function Audit({ servers, setServers, loading }: AuditProps) {
       </div>
     </div>
   );
+}
+
+/* ─── Source label formatting ────────────────────────────────── */
+
+function sourceLabel(source: McpServerInfo["source"]): string {
+  switch (source) {
+    case "claude-desktop":      return "desktop";
+    case "claude-code-user":    return "claude code (user)";
+    case "claude-code-local":   return "claude code (local)";
+    case "vscode-copilot":      return "vscode";
+    default:                    return source;
+  }
 }
 
 /* ─── Detail row inside expanded server ──────────────────────── */

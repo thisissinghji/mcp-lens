@@ -6,7 +6,16 @@ import { invoke } from "@tauri-apps/api/core";
 
 export interface McpServerInfo {
   name: string;
-  source: "user" | "project" | "plugin" | "claude-desktop" | "cursor" | "windsurf" | "vscode-copilot";
+  source:
+    | "user"
+    | "project"
+    | "plugin"
+    | "claude-desktop"
+    | "cursor"
+    | "windsurf"
+    | "vscode-copilot"
+    | "claude-code-user"
+    | "claude-code-local";
   source_path: string;
   command: string;
   args: string[];

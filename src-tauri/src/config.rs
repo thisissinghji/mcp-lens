@@ -161,6 +161,14 @@ pub fn read_mcp_configs() -> Result<Vec<McpServerInfo>, String> {
                 Err(e) => eprintln!("Warning: vscode config: {}", e),
             }
         }
+
+        // ── 8. Claude Code CLI: ~/.claude.json ─────────────────────
+        // Stores MCPs added via `claude mcp add` — both user scope and
+        // per-project (local) scope. READ-ONLY in MCP Lens: toggle/profile
+        // can't manage these because the file holds Claude Code's own state
+        // (47KB+ of settings/history) — writing it from us is too risky.
+        let mut cli_servers = scan_claude_json(&home);
+        servers.append(&mut cli_servers);
     }
 
     // Sort: biggest token consumer first
@@ -252,6 +260,57 @@ fn find_plugin_mcp_json(
 // FILE PARSING
 // ══════════════════════════════════════════════════════════════════
 
+/// Build a McpServerInfo from a raw JSON entry + metadata.
+/// Shared by read_servers_from_file and scan_claude_json.
+fn build_server_info(
+    name: String,
+    raw: McpServerRaw,
+    source: &str,
+    source_path: &str,
+) -> McpServerInfo {
+    // Detect server type: explicit "type" wins, else url => http, else stdio
+    let server_type = if let Some(t) = &raw.server_type {
+        t.clone()
+    } else if raw.url.is_some() {
+        "http".to_string()
+    } else {
+        "stdio".to_string()
+    };
+
+    let command = raw.command.clone()
+        .or(raw.url.clone())
+        .unwrap_or_else(|| "unknown".to_string());
+    let args: Vec<String> = raw.args.clone()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| match v {
+            serde_json::Value::String(s) => s,
+            other => other.to_string(),
+        })
+        .collect();
+    let env_keys: Vec<String> = raw.env.clone()
+        .map(|e| e.keys().cloned().collect())
+        .unwrap_or_default();
+    let header_keys: Vec<String> = raw.headers.clone()
+        .map(|h| h.keys().cloned().collect())
+        .unwrap_or_default();
+    let estimated_tokens = estimate_tokens(&name, &command, &args, &env_keys);
+
+    McpServerInfo {
+        name,
+        source: source.to_string(),
+        source_path: source_path.to_string(),
+        command,
+        args,
+        env_keys,
+        estimated_tokens,
+        real_tokens: None,
+        tool_count: None,
+        server_type,
+        header_keys,
+    }
+}
+
 /// Parse a .mcp.json file and extract server entries
 fn read_servers_from_file(
     path: &PathBuf,
@@ -265,57 +324,94 @@ fn read_servers_from_file(
 
     let source_path = path.display().to_string();
 
-    let servers = raw_servers
+    Ok(raw_servers
         .into_iter()
-        .map(|(name, raw)| {
-            // Detect server type
-            // If "type" field is set ("http"/"sse"), use that
-            // Else if URL is set, default to http
-            // Else stdio (subprocess)
-            let server_type = if let Some(t) = &raw.server_type {
-                t.clone()
-            } else if raw.url.is_some() {
-                "http".to_string()
-            } else {
-                "stdio".to_string()
-            };
+        .map(|(name, raw)| build_server_info(name, raw, source, &source_path))
+        .collect())
+}
 
-            let command = raw.command.clone()
-                .or(raw.url.clone())
-                .unwrap_or_else(|| "unknown".to_string());
-            let args: Vec<String> = raw.args.clone()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|v| match v {
-                    serde_json::Value::String(s) => s,
-                    other => other.to_string(),
-                })
-                .collect();
-            let env_keys: Vec<String> = raw.env.clone()
-                .map(|e| e.keys().cloned().collect())
-                .unwrap_or_default();
-            let header_keys: Vec<String> = raw.headers.clone()
-                .map(|h| h.keys().cloned().collect())
-                .unwrap_or_default();
-            let estimated_tokens = estimate_tokens(&name, &command, &args, &env_keys);
+/// Read Claude Code CLI's ~/.claude.json and extract MCP servers from both:
+///   1. Top-level `mcpServers` map     → user scope (`claude mcp add --scope user`)
+///   2. `projects.<path>.mcpServers`   → local scope (default `claude mcp add`)
+///
+/// These are READ-ONLY from MCP Lens's POV — Claude Code CLI manages them.
+fn scan_claude_json(home: &PathBuf) -> Vec<McpServerInfo> {
+    let claude_json = home.join(".claude.json");
+    if !claude_json.exists() {
+        return Vec::new();
+    }
 
-            McpServerInfo {
-                name,
-                source: source.to_string(),
-                source_path: source_path.clone(),
-                command,
-                args,
-                env_keys,
-                estimated_tokens,
-                real_tokens: None,
-                tool_count: None,
-                server_type,
-                header_keys,
+    let content = match std::fs::read_to_string(&claude_json) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+
+    let value: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut results = Vec::new();
+    let claude_json_path = claude_json.display().to_string();
+
+    // 1. User scope: top-level mcpServers
+    if let Some(mcp) = value.get("mcpServers") {
+        if let Ok(parsed) = serde_json::from_value::<HashMap<String, McpServerRaw>>(mcp.clone()) {
+            for (name, raw) in parsed {
+                results.push(build_server_info(name, raw, "claude-code-user", &claude_json_path));
             }
-        })
-        .collect();
+        }
+    }
 
-    Ok(servers)
+    // 2. Local scope: projects.<path>.mcpServers
+    //    source_path = project directory (not ~/.claude.json) so user sees where it's bound
+    if let Some(projects) = value.get("projects").and_then(|v| v.as_object()) {
+        for (project_path, project_data) in projects {
+            if let Some(mcp) = project_data.get("mcpServers") {
+                if let Ok(parsed) = serde_json::from_value::<HashMap<String, McpServerRaw>>(mcp.clone()) {
+                    for (name, raw) in parsed {
+                        results.push(build_server_info(name, raw, "claude-code-local", project_path));
+                    }
+                }
+            }
+        }
+    }
+
+    results
+}
+
+/// Search by name across both scopes in ~/.claude.json.
+/// Used by count_real_tokens so HTTP scans work for Claude Code-managed servers.
+fn find_in_claude_json(name: &str) -> Option<McpServerRaw> {
+    let home = home_dir()?;
+    let claude_json = home.join(".claude.json");
+    if !claude_json.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&claude_json).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+    if let Some(mcp) = value.get("mcpServers") {
+        if let Ok(parsed) = serde_json::from_value::<HashMap<String, McpServerRaw>>(mcp.clone()) {
+            if let Some(raw) = parsed.get(name) {
+                return Some(raw.clone());
+            }
+        }
+    }
+
+    if let Some(projects) = value.get("projects").and_then(|v| v.as_object()) {
+        for (_, project_data) in projects {
+            if let Some(mcp) = project_data.get("mcpServers") {
+                if let Ok(parsed) = serde_json::from_value::<HashMap<String, McpServerRaw>>(mcp.clone()) {
+                    if let Some(raw) = parsed.get(name) {
+                        return Some(raw.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// Handle both .mcp.json formats:
@@ -431,6 +527,11 @@ fn find_server_config(name: &str) -> Result<McpServerRaw, String> {
                 return Ok(raw.clone());
             }
         }
+    }
+
+    // Also check Claude Code CLI's ~/.claude.json (user + local scopes)
+    if let Some(raw) = find_in_claude_json(name) {
+        return Ok(raw);
     }
 
     Err(format!("Server '{}' not found in any MCP config", name))
